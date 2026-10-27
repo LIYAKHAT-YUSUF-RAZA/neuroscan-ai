@@ -1,0 +1,13 @@
+# CPU-only PyTorch wheel repository
+--extra-index-url https://download.pytorch.org/whl/cpu
+
+# Core Deep Learning & Computer Vision
+torch==2.14.1+cpu
+torchvision==0.29.1+cpu
+timm==1.0.30
+
+# Web Framework, Production WSGI & Image Processing
+Flask==3.1.3
+gunicorn>=23.0.0
+Pillow==12.3.0
+numpy==2.5.2

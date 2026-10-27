@@ -1,0 +1,84 @@
+# ==============================================================================
+# NeuroScan AI - Render Infrastructure Blueprint (render.yaml)
+#
+# Declares 3 coordinated services:
+# 1. neuroscan-ai-service : Python Flask + PyTorch CPU + Gunicorn (Render Web Service)
+# 2. neuroscan-backend    : Node.js + Express API Gateway (Render Web Service)
+# 3. neuroscan-frontend   : React + Vite Single Page App (Render Static Site)
+# ==============================================================================
+
+services:
+  # ----------------------------------------------------------------------------
+  # 1. AI Inference Microservice
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: neuroscan-ai-service
+    runtime: python
+    plan: free
+    region: oregon
+    rootDir: ai-service
+    buildCommand: pip install -r requirements.txt && python download_model.py
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 2 --timeout 120 app:app
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.3
+      - key: FLASK_ENV
+        value: production
+      - key: FLASK_DEBUG
+        value: "0"
+      - key: AI_SERVICE_HOST
+        value: 0.0.0.0
+      - key: MODEL_CHECKPOINT_PATH
+        value: models/best_hybrid_model.pth
+      - key: MODEL_DOWNLOAD_URL
+        sync: false
+      - key: MODEL_EXPECTED_SHA256
+        value: 676fefe87d63ab727fe9b3451e94d86b056082651bbe858ca52bb56ae8fcdf06
+      - key: MODEL_EXPECTED_SIZE_BYTES
+        value: "211853875"
+
+  # ----------------------------------------------------------------------------
+  # 2. API Gateway & Prediction Persistence
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: neuroscan-backend
+    runtime: node
+    plan: free
+    region: oregon
+    rootDir: backend
+    buildCommand: npm install
+    startCommand: node src/server.js
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: FLASK_AI_URL
+        value: https://neuroscan-ai-service.onrender.com
+      - key: CLIENT_ORIGIN
+        value: https://neuroscan-frontend.onrender.com,http://localhost:5173
+      - key: MONGODB_URI
+        sync: false
+
+  # ----------------------------------------------------------------------------
+  # 3. Web Dashboard (Static Site)
+  # ----------------------------------------------------------------------------
+  - type: web
+    name: neuroscan-frontend
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
+      - key: VITE_API_BASE_URL
+        value: https://neuroscan-backend.onrender.com/api
