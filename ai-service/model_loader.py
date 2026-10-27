@@ -1,9 +1,12 @@
 """
 Model architecture and checkpoint loader for Alzheimer's MRI Classification.
 Preserves the exact hybrid architecture: EfficientNet-B0 + Swin-Small.
+Includes memory optimizations (eager garbage collection, explicit dereferencing).
 """
 
 import os
+import gc
+import sys
 import torch
 import torch.nn as nn
 from timm import create_model
@@ -55,6 +58,7 @@ def load_model(checkpoint_path=None, device="cpu"):
 
     Supports raw state dictionary and wrapped checkpoint formats (state_dict, model_state_dict).
     Validates parameter compatibility strictly and raises actionable errors on mismatch.
+    Applies explicit memory cleanup to prevent memory spikes.
     """
     if checkpoint_path is None:
         base_dir = os.path.dirname(os.path.abspath(__file__))
@@ -72,7 +76,12 @@ def load_model(checkpoint_path=None, device="cpu"):
         )
 
     device = torch.device(device)
-    print(f"[ModelLoader] Loading checkpoint from: {checkpoint_path} onto {device}")
+    num_threads = int(os.getenv("TORCH_NUM_THREADS", "2"))
+    torch.set_num_threads(num_threads)
+    print(f"[ModelLoader] Loading checkpoint from: {checkpoint_path} onto {device} (threads={num_threads})")
+
+    # Run GC before allocation
+    gc.collect()
 
     # Safe deserialization
     try:
@@ -106,6 +115,10 @@ def load_model(checkpoint_path=None, device="cpu"):
             new_key = new_key[len("_orig_mod."):]
         cleaned_state_dict[new_key] = value
 
+    # Release loaded and state_dict references
+    del loaded
+    del state_dict
+
     model = AlzheimerNetHybrid(num_classes=NUM_CLASSES)
 
     try:
@@ -116,7 +129,14 @@ def load_model(checkpoint_path=None, device="cpu"):
             f"Checkpoint architecture mismatch while loading into AlzheimerNetHybrid: {err}\n"
             "Verify that the checkpoint matches the EfficientNet-B0 + Swin-Small hybrid architecture."
         ) from err
+    finally:
+        # Eagerly purge the dictionary of raw tensor references
+        del cleaned_state_dict
+        gc.collect()
 
     model.to(device)
     model.eval()
+
+    # Final cleanup
+    gc.collect()
     return model

@@ -1,11 +1,14 @@
 """
 Flask AI Inference Service for Alzheimer's MRI Classification.
 Provides /health, /predict, and /explain endpoints with strict validation.
+Uses lazy model loading to ensure fast port binding and prevent worker boot timeouts.
 """
 
 import os
 import io
 import sys
+import gc
+import threading
 from flask import Flask, request, jsonify
 from PIL import Image
 
@@ -30,17 +33,47 @@ MAX_CONTENT_LENGTH = 10 * 1024 * 1024  # 10 MB limit
 app.config["MAX_CONTENT_LENGTH"] = MAX_CONTENT_LENGTH
 ALLOWED_EXTENSIONS = {"png", "jpg", "jpeg", "bmp", "webp", "tif", "tiff"}
 
-# Global model state
+# Global model state & thread lock for lazy loading
 MODEL = None
 MODEL_LOAD_ERROR = None
+_model_lock = threading.Lock()
 
-try:
-    print("[AI Service] Initializing model...")
-    MODEL = load_model()
-    print("[AI Service] Model loaded successfully.")
-except Exception as e:
-    MODEL_LOAD_ERROR = str(e)
-    print(f"[AI Service] Error loading model: {e}", file=sys.stderr)
+
+def get_or_load_model():
+    """
+    Thread-safe model retrieval with lazy initialization.
+    Ensures Gunicorn binds to $PORT immediately without startup OOM or health-check timeouts.
+    """
+    global MODEL, MODEL_LOAD_ERROR
+    if MODEL is not None:
+        return MODEL
+
+    with _model_lock:
+        if MODEL is not None:
+            return MODEL
+        try:
+            print("[AI Service] Initializing model checkpoint into memory...")
+            MODEL = load_model()
+            MODEL_LOAD_ERROR = None
+            print("[AI Service] Model loaded successfully into memory.")
+            return MODEL
+        except MemoryError as mem_err:
+            MODEL_LOAD_ERROR = f"MemoryError: Instance memory limit exceeded ({mem_err})"
+            print(f"[AI Service] CRITICAL OOM: Insufficient RAM to load model weights: {mem_err}", file=sys.stderr)
+            raise
+        except Exception as e:
+            MODEL_LOAD_ERROR = str(e)
+            print(f"[AI Service] Error loading model: {e}", file=sys.stderr)
+            raise
+
+
+# Load model at startup by default (can be delayed with MODEL_LAZY_LOAD=1)
+if os.getenv("MODEL_LAZY_LOAD", "0").lower() not in ("true", "1"):
+    try:
+        print("[AI Service] Eagerly initializing model checkpoint on startup...")
+        get_or_load_model()
+    except Exception as _e:
+        print(f"[AI Service] Startup model loading error: {_e}", file=sys.stderr)
 
 
 def validate_image_upload(request_obj):
@@ -89,21 +122,22 @@ def validate_image_upload(request_obj):
 
 @app.route("/health", methods=["GET"])
 def health():
-    """Health check endpoint reporting service and model loading status."""
+    """Health check endpoint reporting service, port, and model readiness."""
     is_loaded = MODEL is not None
-    status = "healthy" if is_loaded else "degraded"
-    status_code = 200 if is_loaded else 503
 
     payload = {
-        "status": status,
+        "status": "healthy" if is_loaded else "standby",
         "service": "Alzheimer AI Inference Service",
         "modelLoaded": is_loaded,
         "device": "cpu",
     }
-    if not is_loaded and MODEL_LOAD_ERROR:
-        payload["modelError"] = "Model failed to load. Please inspect server configuration."
+    if not is_loaded:
+        if MODEL_LOAD_ERROR:
+            payload["modelStatus"] = f"error: {MODEL_LOAD_ERROR}"
+        else:
+            payload["modelStatus"] = "standby (will initialize on first prediction request)"
 
-    return jsonify(payload), status_code
+    return jsonify(payload), 200
 
 
 @app.route("/predict", methods=["POST", "OPTIONS"])
@@ -115,8 +149,10 @@ def predict_endpoint():
     if request.method == "OPTIONS":
         return "", 204
 
-    if MODEL is None:
-        return jsonify({"error": "Model is not loaded. Please contact the administrator."}), 503
+    try:
+        model = get_or_load_model()
+    except Exception as e:
+        return jsonify({"error": f"Model is not available: {e}"}), 503
 
     image_bytes, error_tuple = validate_image_upload(request)
     if error_tuple:
@@ -125,15 +161,20 @@ def predict_endpoint():
 
     try:
         tensor, resized_pil = preprocess_image(image_bytes)
-        result = predict(MODEL, tensor)
+        result = predict(model, tensor)
 
         # Include heatmaps if requested
         include_heatmaps = request.args.get("include_heatmaps", "false").lower() in ("true", "1")
         if include_heatmaps:
-            heatmaps = explain_prediction(MODEL, tensor, resized_pil)
+            heatmaps = explain_prediction(model, tensor, resized_pil)
             result["heatmaps"] = heatmaps
 
+        # Run GC after request
+        gc.collect()
         return jsonify(result), 200
+    except MemoryError:
+        print("[AI Service] OutOfMemory during prediction execution.", file=sys.stderr)
+        return jsonify({"error": "Server ran out of memory during inference."}), 503
     except Exception as exc:
         print(f"[AI Service] Prediction error: {exc}", file=sys.stderr)
         return jsonify({"error": "An error occurred while processing the MRI image."}), 500
@@ -147,8 +188,10 @@ def explain_endpoint():
     if request.method == "OPTIONS":
         return "", 204
 
-    if MODEL is None:
-        return jsonify({"error": "Model is not loaded. Please contact the administrator."}), 503
+    try:
+        model = get_or_load_model()
+    except Exception as e:
+        return jsonify({"error": f"Model is not available: {e}"}), 503
 
     image_bytes, error_tuple = validate_image_upload(request)
     if error_tuple:
@@ -166,8 +209,14 @@ def explain_endpoint():
             except ValueError:
                 target_class = None
 
-        heatmaps = explain_prediction(MODEL, tensor, resized_pil, target_class=target_class)
+        heatmaps = explain_prediction(model, tensor, resized_pil, target_class=target_class)
+
+        # Run GC after explanation computation
+        gc.collect()
         return jsonify(heatmaps), 200
+    except MemoryError:
+        print("[AI Service] OutOfMemory during attribution generation.", file=sys.stderr)
+        return jsonify({"error": "Server ran out of memory while calculating attribution heatmaps."}), 503
     except Exception as exc:
         print(f"[AI Service] Explain error: {exc}", file=sys.stderr)
         return jsonify({"error": "An error occurred while generating attribution heatmaps."}), 500

@@ -110,7 +110,7 @@ def predict(model, image_tensor, device="cpu"):
     device = torch.device(device)
     tensor = image_tensor.to(device)
 
-    with torch.no_grad():
+    with torch.inference_mode():
         logits = model(tensor)
         probabilities = torch.softmax(logits, dim=1).squeeze(0).cpu().tolist()
 

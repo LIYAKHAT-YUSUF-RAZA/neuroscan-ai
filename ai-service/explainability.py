@@ -1,9 +1,11 @@
 """
 Explainability engine for AlzheimerNetHybrid using Grad-CAM and Integrated Gradients.
 Provides attribution heatmaps overlaid on the original MRI scan.
+Optimized for streaming gradient accumulation and eager memory freeing.
 """
 
 import io
+import gc
 import base64
 import torch
 import torch.nn.functional as F
@@ -81,7 +83,7 @@ def generate_gradcam(model, image_tensor, target_class=None, device="cpu"):
     b_handle = target_layer.register_full_backward_hook(backward_hook)
 
     try:
-        model.zero_grad()
+        model.zero_grad(set_to_none=True)
         logits = model(tensor)
 
         if target_class is None:
@@ -102,16 +104,20 @@ def generate_gradcam(model, image_tensor, target_class=None, device="cpu"):
 
         cam_min, cam_max = cam_np.min(), cam_np.max()
         cam_norm = (cam_np - cam_min) / (cam_max - cam_min + 1e-8)
+
+        del act, grad, weights, cam, tensor, logits
         return cam_norm
     finally:
         f_handle.remove()
         b_handle.remove()
-        model.zero_grad()
+        model.zero_grad(set_to_none=True)
+        gc.collect()
 
 
-def generate_integrated_gradients(model, image_tensor, target_class=None, steps=20, device="cpu"):
+def generate_integrated_gradients(model, image_tensor, target_class=None, steps=15, device="cpu"):
     """
-    Generates Integrated Gradients attribution with a black baseline across intermediate steps.
+    Generates Integrated Gradients attribution with in-place streaming accumulation
+    to avoid memory spikes across interpolation steps.
     """
     device = torch.device(device)
     model.eval()
@@ -120,30 +126,30 @@ def generate_integrated_gradients(model, image_tensor, target_class=None, steps=
     baseline = torch.zeros_like(input_tensor)
 
     if target_class is None:
-        with torch.no_grad():
+        with torch.inference_mode():
             logits = model(input_tensor)
             target_class = int(logits.argmax(dim=1).item())
 
-    # Generate linear interpolation path between baseline and input
-    scaled_inputs = [
-        baseline + (float(step) / steps) * (input_tensor - baseline)
-        for step in range(1, steps + 1)
-    ]
+    delta = (input_tensor - baseline).detach()
+    accum_grad = torch.zeros_like(input_tensor)
 
-    grads = []
-    for step_tensor in scaled_inputs:
-        step_tensor = step_tensor.clone().detach().requires_grad_(True)
-        model.zero_grad()
+    # Accumulate gradients step by step without storing intermediate graphs
+    for step in range(1, steps + 1):
+        step_tensor = (baseline + (float(step) / steps) * delta).detach().requires_grad_(True)
+        model.zero_grad(set_to_none=True)
         out = model(step_tensor)
         out[0, target_class].backward()
-        grads.append(step_tensor.grad.detach())
+        if step_tensor.grad is not None:
+            accum_grad += step_tensor.grad.detach()
+        model.zero_grad(set_to_none=True)
+        del step_tensor
+        del out
 
-    model.zero_grad()
-
-    # Average gradients along the path
-    avg_grads = torch.stack(grads, dim=0).mean(dim=0)
-    delta = (input_tensor - baseline).detach()
+    avg_grads = accum_grad / float(steps)
     attr = (delta * avg_grads).abs().sum(dim=1).squeeze().cpu().numpy()
+
+    del accum_grad, avg_grads, delta, input_tensor, baseline
+    gc.collect()
 
     attr_min, attr_max = attr.min(), attr.max()
     ig_norm = (attr - attr_min) / (attr_max - attr_min + 1e-8)
@@ -153,6 +159,7 @@ def generate_integrated_gradients(model, image_tensor, target_class=None, steps=
 def explain_prediction(model, image_tensor, pil_image, target_class=None, device="cpu"):
     """
     Computes both Grad-CAM and Integrated Gradients, returning overlay data URLs.
+    Performs explicit cleanup to prevent memory accumulation.
     """
     gradcam_map = generate_gradcam(model, image_tensor, target_class=target_class, device=device)
     ig_map = generate_integrated_gradients(
@@ -161,6 +168,10 @@ def explain_prediction(model, image_tensor, pil_image, target_class=None, device
 
     _, gradcam_data_url = overlay_heatmap(pil_image, gradcam_map, alpha=0.45)
     _, ig_data_url = overlay_heatmap(pil_image, ig_map, alpha=0.40)
+
+    # Free numpy attribution arrays
+    del gradcam_map, ig_map
+    gc.collect()
 
     return {
         "gradcam": gradcam_data_url,
