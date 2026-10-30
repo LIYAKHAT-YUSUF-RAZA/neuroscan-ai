@@ -1,10 +1,14 @@
 const axios = require('axios');
 const FormData = require('form-data');
-const { flaskAiUrl } = require('../config/env');
+const { flaskAiUrl, aiServiceSecretKey } = require('../config/env');
 
 const checkAiHealth = async () => {
   try {
-    const res = await axios.get(`${flaskAiUrl}/health`, { timeout: 3000 });
+    const headers = {};
+    if (aiServiceSecretKey) {
+      headers['X-AI-Secret-Key'] = aiServiceSecretKey;
+    }
+    const res = await axios.get(`${flaskAiUrl}/health`, { headers, timeout: 3000 });
     return { reachable: true, data: res.data };
   } catch (error) {
     return {
@@ -28,11 +32,16 @@ const sendImageToFlask = async (endpoint, fileBuffer, filename, mimetype, extraP
     }
   }
 
+  const headers = {
+    ...form.getHeaders(),
+  };
+  if (aiServiceSecretKey) {
+    headers['X-AI-Secret-Key'] = aiServiceSecretKey;
+  }
+
   try {
     const response = await axios.post(`${flaskAiUrl}${endpoint}`, form, {
-      headers: {
-        ...form.getHeaders(),
-      },
+      headers,
       maxContentLength: 15 * 1024 * 1024,
       maxBodyLength: 15 * 1024 * 1024,
       timeout: 60000, // 60s timeout for gradient computations

@@ -9,6 +9,7 @@ import io
 import sys
 import gc
 import threading
+import hmac
 from flask import Flask, request, jsonify
 from PIL import Image
 
@@ -23,9 +24,79 @@ app = Flask(__name__)
 @app.after_request
 def add_cors_headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization, X-AI-Secret-Key"
     response.headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
     return response
+
+
+
+def _load_env_file(env_path=None):
+    """
+    Safely loads key-value pairs from a local .env file into os.environ.
+    Does not execute shell commands or require third-party libraries.
+    Does not overwrite existing environment variables.
+    """
+    if env_path is None:
+        base_dir = os.path.dirname(os.path.abspath(__file__))
+        env_path = os.path.join(base_dir, ".env")
+    if not os.path.isfile(env_path):
+        return
+    try:
+        with open(env_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line or line.startswith("#") or "=" not in line:
+                    continue
+                k, v = line.split("=", 1)
+                k = k.strip()
+                v = v.strip().strip("'\"")
+                if k and k not in os.environ:
+                    os.environ[k] = v
+    except Exception as e:
+        print(f"[AI Service] Warning: Could not read local env file: {e}", file=sys.stderr)
+
+
+# Load local .env if present
+_load_env_file()
+
+# Authentication configuration
+AI_SERVICE_SECRET_KEY = os.getenv("AI_SERVICE_SECRET_KEY", "").strip()
+IS_PRODUCTION = (
+    os.getenv("FLASK_ENV", "").lower() == "production"
+    or os.getenv("RENDER", "").lower() == "true"
+    or os.getenv("NODE_ENV", "").lower() == "production"
+    or os.getenv("ENVIRONMENT", "").lower() == "production"
+)
+
+
+def check_internal_authorization(request_obj):
+    """
+    Validates internal service-to-service authentication via X-AI-Secret-Key or Authorization header.
+    - If configured, enforces secret match using hmac.compare_digest for constant-time comparison.
+    - If unconfigured in production, fails closed (rejects requests).
+    - If unconfigured in local development, allows unauthenticated requests.
+    - Never logs secrets or authorization header values.
+    Returns (error_payload, status_code) on failure, or None on success.
+    """
+    secret = os.getenv("AI_SERVICE_SECRET_KEY", "").strip() or AI_SERVICE_SECRET_KEY
+    if not secret:
+        if IS_PRODUCTION:
+            return {"error": "Unauthorized: AI_SERVICE_SECRET_KEY must be configured in production."}, 401
+        return None
+
+    incoming_key = request_obj.headers.get("X-AI-Secret-Key")
+    if not incoming_key:
+        auth_header = request_obj.headers.get("Authorization", "")
+        if auth_header.startswith("Bearer "):
+            incoming_key = auth_header[7:].strip()
+
+    if not incoming_key:
+        return {"error": "Unauthorized: Missing authentication credentials."}, 401
+
+    if not hmac.compare_digest(incoming_key, secret):
+        return {"error": "Unauthorized: Invalid secret key."}, 401
+
+    return None
 
 
 # Configuration
@@ -149,6 +220,11 @@ def predict_endpoint():
     if request.method == "OPTIONS":
         return "", 204
 
+    auth_error = check_internal_authorization(request)
+    if auth_error:
+        error_resp, code = auth_error
+        return jsonify(error_resp), code
+
     try:
         model = get_or_load_model()
     except Exception as e:
@@ -187,6 +263,11 @@ def explain_endpoint():
     """
     if request.method == "OPTIONS":
         return "", 204
+
+    auth_error = check_internal_authorization(request)
+    if auth_error:
+        error_resp, code = auth_error
+        return jsonify(error_resp), code
 
     try:
         model = get_or_load_model()
