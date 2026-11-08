@@ -23,7 +23,17 @@ def generate_synthetic_image_bytes():
     pil_img.save(buf, format="PNG")
     return buf.getvalue()
 
-def post_multipart(url, file_bytes, filename="mri_scan.png", content_type="image/png"):
+from pathlib import Path
+
+def get_ai_secret():
+    env_file = Path(__file__).resolve().parent / "ai-service" / ".env"
+    if env_file.exists():
+        for line in env_file.read_text().splitlines():
+            if line.startswith("AI_SERVICE_SECRET_KEY="):
+                return line.split("=", 1)[1].strip()
+    return ""
+
+def post_multipart(url, file_bytes, filename="mri_scan.png", content_type="image/png", extra_headers=None):
     boundary = "----WebKitFormBoundary7MA4YWxkTrZu0gW"
     body = (
         f"--{boundary}\r\n"
@@ -34,6 +44,9 @@ def post_multipart(url, file_bytes, filename="mri_scan.png", content_type="image
     req = urllib.request.Request(url, data=body, method="POST")
     req.add_header("Content-Type", f"multipart/form-data; boundary={boundary}")
     req.add_header("Content-Length", str(len(body)))
+    if extra_headers:
+        for k, v in extra_headers.items():
+            req.add_header(k, v)
 
     with urllib.request.urlopen(req, timeout=60) as resp:
         return resp.status, json.loads(resp.read().decode("utf-8"))
@@ -51,6 +64,8 @@ def delete_json(url):
 def run():
     print("=== Running Comprehensive End-to-End System Tests ===")
     img_bytes = generate_synthetic_image_bytes()
+    secret_key = get_ai_secret()
+    flask_headers = {"X-AI-Secret-Key": secret_key} if secret_key else {}
 
     # 1. Test Flask AI Service Direct
     print("\n[1] Testing Flask Service Directly (http://127.0.0.1:5001)...")
@@ -60,7 +75,11 @@ def run():
         assert h_data.get("modelLoaded") is True, "Model is not loaded"
         assert h_data.get("device") == "cpu", "Device should be cpu"
 
-        p_status, p_data = post_multipart("http://127.0.0.1:5001/predict?include_heatmaps=true", img_bytes)
+        p_status, p_data = post_multipart(
+            "http://127.0.0.1:5001/predict?include_heatmaps=true",
+            img_bytes,
+            extra_headers=flask_headers,
+        )
         print(f"    POST /predict -> HTTP {p_status}")
         print(f"    Predicted: {p_data.get('stageLabel')} ({p_data.get('predictedClass')})")
         print(f"    Probabilities: {p_data.get('probabilities')}")
@@ -69,7 +88,11 @@ def run():
         assert "integratedGradients" in p_data["heatmaps"], "IG missing"
 
         # Test dedicated /explain endpoint
-        exp_status, exp_data = post_multipart("http://127.0.0.1:5001/explain", img_bytes)
+        exp_status, exp_data = post_multipart(
+            "http://127.0.0.1:5001/explain",
+            img_bytes,
+            extra_headers=flask_headers,
+        )
         print(f"    POST /explain -> HTTP {exp_status}")
         assert "gradcam" in exp_data and "integratedGradients" in exp_data, "Explain endpoint failed"
         print("    [PASS] Flask AI service direct test successful!")

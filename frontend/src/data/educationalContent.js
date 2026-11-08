@@ -6,120 +6,172 @@
 
 export const STAGE_MAP = {
   NonDemented: {
-    displayLabel: 'Healthy / Non-Demented Category',
-    stageLabel: 'Healthy (Non-Demented)',
-    color: '#10b981', // emerald / green
-    border: 'rgba(16, 185, 129, 0.35)',
-    bg: 'rgba(16, 185, 129, 0.12)',
+    stageNumber: 1,
+    displayLabel: 'Healthy / No Dementia Detected',
+    stageLabel: 'Healthy / No Dementia Detected',
+    alertLevel: 'info',
+    color: '#15803D', // high-contrast dark green
+    border: '#BBF7D0',
+    bg: '#F0FDF4',
+    canonicalClass: 'NonDemented',
   },
   VeryMildDemented: {
-    displayLabel: 'Very Mild / Possible Early-Stage Category',
-    stageLabel: 'Early Stage (Very Mild)',
-    color: '#818cf8', // blue / violet
-    border: 'rgba(129, 140, 248, 0.35)',
-    bg: 'rgba(129, 140, 248, 0.12)',
+    stageNumber: 2,
+    displayLabel: 'Early Stage',
+    stageLabel: 'Early Stage',
+    alertLevel: 'warning',
+    color: '#0369A1', // high-contrast dark sky/blue
+    border: '#BAE6FD',
+    bg: '#F0F9FF',
+    canonicalClass: 'VeryMildDemented',
   },
   MildDemented: {
-    displayLabel: 'Mild Dementia Category',
-    stageLabel: 'Mild Stage',
-    color: '#f59e0b', // amber / orange
-    border: 'rgba(245, 158, 11, 0.35)',
-    bg: 'rgba(245, 158, 11, 0.12)',
+    stageNumber: 3,
+    displayLabel: 'Moderate Stage',
+    stageLabel: 'Moderate Stage',
+    alertLevel: 'caution',
+    color: '#B45309', // high-contrast dark amber
+    border: '#FDE68A',
+    bg: '#FFFBEB',
+    canonicalClass: 'MildDemented',
   },
   ModerateDemented: {
-    displayLabel: 'Moderate Dementia Category',
-    stageLabel: 'Moderate Stage',
-    color: '#ef4444', // red / rose
-    border: 'rgba(239, 68, 68, 0.35)',
-    bg: 'rgba(239, 68, 68, 0.12)',
+    stageNumber: 4,
+    displayLabel: 'Critical Stage',
+    stageLabel: 'Critical Stage',
+    alertLevel: 'critical',
+    color: '#B91C1C', // high-contrast dark red
+    border: '#FECACA',
+    bg: '#FEF2F2',
+    canonicalClass: 'ModerateDemented',
   },
 };
 
+// Sequential presentation spectrum (Stage 1 -> Stage 4)
+export const ORDERED_STAGES = [
+  STAGE_MAP.NonDemented,
+  STAGE_MAP.VeryMildDemented,
+  STAGE_MAP.MildDemented,
+  STAGE_MAP.ModerateDemented,
+];
+
 export const CLASS_COLORS = {
-  NonDemented: '#10b981', // emerald
-  VeryMildDemented: '#818cf8', // blue/violet
-  MildDemented: '#f59e0b', // amber
-  ModerateDemented: '#ef4444', // red/rose
+  NonDemented: '#15803D',
+  VeryMildDemented: '#0369A1',
+  MildDemented: '#B45309',
+  ModerateDemented: '#B91C1C',
 };
+
 
 export function getStageInfo(canonicalClass) {
   return (
     STAGE_MAP[canonicalClass] || {
-      displayLabel: canonicalClass || 'Unknown',
-      stageLabel: 'Unspecified Stage',
+      stageNumber: 1,
+      displayLabel: canonicalClass || 'Unknown Category',
+      stageLabel: canonicalClass || 'Unspecified Stage',
+      alertLevel: 'info',
       color: '#38bdf8',
       border: 'rgba(56, 189, 248, 0.35)',
       bg: 'rgba(56, 189, 248, 0.12)',
+      canonicalClass: canonicalClass || 'Unknown',
     }
   );
 }
 
 export const EDUCATIONAL_DATA = {
   NonDemented: {
-    categoryName: 'Healthy / Non-Demented Category',
-    stageLabel: 'Healthy (Non-Demented)',
+    stageNumber: 1,
+    categoryName: 'Healthy / No Dementia Detected',
+    canonicalClass: 'NonDemented',
     summary:
-      'Brain structural features consistent with the non-demented baseline control group from the research dataset.',
+      "No dementia-class pattern was identified by this classifier. This does not rule out Alzheimer's disease or other neurological conditions.",
     memory:
       'Normal cognitive functioning with typical age-related changes. Minor retrieval pauses (e.g. searching for a specific name) are common and self-correcting.',
     familiarPeople:
-      'Full recognition of immediate family members, friends, colleagues, and community acquaintances.',
+      'Consistently recognizes immediate family members, friends, colleagues, and community acquaintances.',
     dailyBehaviour:
       'Fully autonomous in daily activities, professional responsibilities, complex financial management, and medication schedules.',
     example:
       'May occasionally misplace reading glasses or walk into a room and briefly forget why, but promptly recovers recall without disorientation.',
     clinicalNotice:
-      'Important: "Non-Demented" corresponds to the dataset control cohort. An AI classification of Non-Demented is neither proof of medical health nor an exclusion of subtle or non-structural cognitive conditions.',
+      'Important: "NonDemented" corresponds to the dataset control cohort. An AI classification of Healthy is neither medical proof of health nor an exclusion of subtle, non-structural, or early-stage cognitive conditions.',
+    recommendations: [
+      'Maintain a balanced and nutritious diet.',
+      'Perform regular physical activity.',
+      'Maintain a consistent sleep routine.',
+      'Engage in brain-stimulating and social activities.',
+    ],
   },
 
   VeryMildDemented: {
-    categoryName: 'Very Mild / Possible Early-Stage Category',
-    stageLabel: 'Early Stage (Very Mild)',
+    stageNumber: 2,
+    categoryName: 'Early Stage',
+    canonicalClass: 'VeryMildDemented',
     summary:
-      'Visual features exhibiting subtle structural variations often investigated in early-stage cognitive research cohorts.',
+      'Corresponds to the VeryMildDemented category in the training dataset. Clinical neuropsychological tracking may be appropriate if concerns exist.',
     memory:
-      'Mild but noticeable short-term memory lapses, such as repeatedly asking the same question or misplacing objects in unusual spots.',
+      'Subtle short-term memory lapses, such as asking repetitive questions or forgetting recent conversations within a short timeframe.',
     familiarPeople:
-      'Consistently identifies close family and longtime friends; may occasionally hesitate on names of new acquaintances or distant relatives.',
+      'Consistently identifies close family and longtime friends; may occasionally hesitate on names of newer acquaintances or distant relatives.',
     dailyBehaviour:
-      'Largely independent in basic self-care, though complex planning, managing multi-step schedules, or travel to unfamiliar places may require compensatory notes or mild assistance.',
+      'Capable of independent daily living, though complex planning, managing multi-step schedules, or detailed paperwork may show mild errors.',
     example:
-      'Forgets details of a conversation that occurred earlier in the week, requiring reminders or relying increasingly on calendar prompts.',
+      'Forgets the location of recently placed items or repeats stories within a short timeframe without realizing it.',
     clinicalNotice:
-      'Very mild cognitive alterations can stem from various reversible or neurological factors (sleep, stress, metabolic, or neurodegenerative). Formal neuropsychological evaluation is indispensable.',
+      'Very mild cognitive variations can stem from diverse reversible or neurological factors (sleep disruption, stress, thyroid imbalance, vitamin B12 deficiency). Formal neuropsychological evaluation is recommended.',
+    recommendations: [
+      'Practice simple memory exercises.',
+      'Use calendars, reminders, and written notes.',
+      'Follow a consistent daily routine.',
+      'Consider a professional memory or neurological evaluation.',
+    ],
   },
 
   MildDemented: {
-    categoryName: 'Mild Dementia Category',
-    stageLabel: 'Mild Stage',
+    stageNumber: 3,
+    categoryName: 'Moderate Stage',
+    canonicalClass: 'MildDemented',
     summary:
-      'Features characteristic of moderate cortical and hippocampal volume changes seen in mild dementia research scans.',
+      'Corresponds to the MildDemented category in the training dataset. Professional neurological assessment is recommended if symptoms or concerns are present.',
     memory:
-      'Significant retention difficulty for recent events, newly learned instructions, or the date and day of the week.',
+      'Clear difficulty retaining recently learned information, appointment dates, or names of common objects and tools.',
     familiarPeople:
-      'Recognizes close family members, but may struggle with exact relationship roles or confuse generational relationships (e.g., adult child with a sibling).',
+      'Recognizes immediate family members, though may occasionally confuse generational relationships (e.g., an adult child with a sibling).',
     dailyBehaviour:
-      'Noticeable difficulty with instrumental daily living tasks (paying bills, preparing multi-ingredient meals, managing medications correctly). Benefits from structured routines and supervision.',
+      'May require reminders or structured checklists for bills, complex cooking, or navigating unfamiliar environments.',
     example:
-      'Frequently loses track of recent conversations and may struggle to navigate unfamiliar driving routes without getting disoriented.',
+      'Forgets recent conversations completely and struggles to follow multi-step recipes or route directions without getting disoriented.',
     clinicalNotice:
-      'Mild dementia impacts daily independence and safety. A comprehensive neurological evaluation including cognitive tests and metabolic panels is recommended.',
+      'Mild dementia impairs instrumental activities of daily living and warrants comprehensive neurological examination and cognitive assessment.',
+    recommendations: [
+      'Get assistance with difficult daily activities when needed.',
+      'Practice simple, guided activities.',
+      'Encourage family or caregiver involvement.',
+      'Maintain regular specialist follow-up.',
+    ],
   },
 
   ModerateDemented: {
-    categoryName: 'Moderate Dementia Category',
-    stageLabel: 'Moderate Stage',
+    stageNumber: 4,
+    categoryName: 'Critical Stage',
+    canonicalClass: 'ModerateDemented',
     summary:
-      'Features consistent with extensive ventricular enlargement and temporal-parietal structural atrophy typical of moderate dementia cohorts.',
+      'Corresponds to the highest-severity category in the four-class training dataset. Prompt specialist assessment is advised. This prediction does not establish critical clinical pathology.',
     memory:
-      'Severe memory impairment extending to personal biography (e.g., home address, past telephone numbers, schooling) and disorientation to current season and year.',
+      'Substantial gaps in memory, difficulty recalling personal history (e.g., home address, past schools), and disorientation to time and date.',
     familiarPeople:
-      'May have difficulty naming close family members or spouses, though emotional connection and recognition of familiarity often persist.',
+      'May frequently misidentify or struggle to recall names of close relatives, though emotional connection and recognition of familiarity often persist.',
     dailyBehaviour:
-      'Requires daily assistance with core activities of daily living (selecting appropriate clothing, meal setup, hygiene reminders, medication administration).',
+      'Requires regular assistance with daily personal care, including dressing properly for the weather, hygiene reminders, and meal setup.',
     example:
-      'May wander or become anxious and disoriented even within the home environment, requiring continuous supportive care and protective oversight.',
+      'Wanders or becomes confused in familiar surroundings and requires compassionate full-time supervisory support.',
     clinicalNotice:
-      'Moderate dementia requires multidisciplinary medical, psychiatric, and caregiver support to preserve quality of life and safety.',
+      'Moderate dementia significantly impacts daily living and safety, requiring multidisciplinary medical, psychiatric, and caregiver support.',
+    recommendations: [
+      'Provide assistance with personal care and daily activities when needed.',
+      'Maintain a safe home environment and reduce fall risks.',
+      'Encourage caregiver involvement and support.',
+      'Obtain specialist-led individualized care planning.',
+    ],
   },
 };

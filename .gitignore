@@ -1,12 +1,14 @@
-# Node.js dependencies
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-pnpm-debug.log*
-.npm/
+# ==============================================================================
+# NeuroScan AI — .gitignore Configuration
+# ==============================================================================
 
-# Python Virtual Environments
+# Environment and Secrets (Never commit or push)
+.env
+.env.*
+*.env
+*.env.*
+
+# Python Virtual Environments & Dependencies
 .venv/
 venv/
 env/
@@ -14,7 +16,7 @@ ENV/
 env.bak/
 venv.bak/
 
-# Python Caches and Bytecode
+# Python Caches, Bytecode & Testing
 __pycache__/
 *.py[cod]
 *$py.class
@@ -23,25 +25,55 @@ __pycache__/
 .coverage
 htmlcov/
 .mypy_cache/
+.ruff_cache/
 
-# Environment Variables & Secrets
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
-# Do not ignore example env files
-!.env.example
+# Node.js Dependencies, Logs & Build Outputs
+node_modules/
+dist/
+build/
+coverage/
+.npm/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Trained Model Checkpoints & Large Weights
+# Model Checkpoints & Large Binary Weights (Never commit)
 *.pth
 *.pt
-*.bin
-*.onnx
-*.safetensors
 *.ckpt
+*.h5
+*.keras
+*.onnx
+*.pkl
+*.joblib
+*.bin
+*.safetensors
 ai-service/models/*
 !ai-service/models/.gitkeep
+ai-service/calibration/data_cache/
+
+# Medical Datasets & Imaging Archives (Never commit)
+datasets/
+dataset/
+data/
+OriginalDataset/
+external_test_cohort/
+research/datasets/
+*.dcm
+*.nii
+*.nii.gz
+
+# Research Working Folders, Audit Archives & Backups
+research/
+NEUROSCAN_CODEX_AUDIT/
+NEUROSCAN_CODEX_AUDIT.zip
+research.zip
+.backup_stage_b/
+scratch/
+screenshots/
+docs/
+CHANGELOG.md
 
 # Temporary Uploads & Generated Visualizations
 uploads/
@@ -52,15 +84,21 @@ generated_heatmaps/
 *.gradcam.png
 *.ig.png
 
-# Build artifacts
-dist/
-build/
-.cache/
+# Sensitive Credentials, Certificates & Configuration
+*.pem
+*.key
+*.p12
+*.pfx
+credentials.json
+service-account.json
 
-# Operating System & IDE
+# Operating System & IDE Artifacts
 .DS_Store
 Thumbs.db
 .idea/
-.vscode/*
-!.vscode/extensions.json
-!.vscode/settings.json
+.vscode/
+
+# Build caches & Log files
+*.log
+*.tmp
+.cache/

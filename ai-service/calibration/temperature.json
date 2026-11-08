@@ -1,0 +1,20 @@
+{
+  "version": "1.0.0",
+  "method": "temperature_scaling",
+  "deterministic": {
+    "temperature": 1.2131,
+    "nll_before": 0.236421,
+    "nll_after": 0.230869,
+    "split": "val_calib",
+    "samples": 320
+  },
+  "mc_dropout": {
+    "temperature": 1.1904,
+    "nll_before": 0.236661,
+    "nll_after": 0.232135,
+    "split": "val_calib",
+    "samples": 320
+  },
+  "checkpoint_sha256": "676fefe87d63ab727fe9b3451e94d86b056082651bbe858ca52bb56ae8fcdf06",
+  "fitted_at": "2026-11-02T17:33:25Z"
+}

@@ -57,6 +57,13 @@ def run_smoke_test():
     assert "memory" in result["explanations"], "Explanations must include memory"
     assert "disclaimer" in result, "Result must contain disclaimer"
 
+    # Assert four-stage presentation fields
+    assert "stageNumber" in result and result["stageNumber"] in (1, 2, 3, 4), "Invalid stageNumber"
+    assert "displayLabel" in result and len(result["displayLabel"]) > 0, "Missing displayLabel"
+    assert "alertLevel" in result and result["alertLevel"] in ("info", "warning", "caution", "critical"), "Invalid alertLevel"
+    assert "recommendations" in result and len(result["recommendations"]) > 0, "Missing recommendations"
+    assert "educationalExplanation" in result and len(result["educationalExplanation"]) > 0, "Missing educationalExplanation"
+
     # 4. Explainability (Grad-CAM & Integrated Gradients)
     print("[4/4] Generating Grad-CAM and Integrated Gradients...")
     heatmaps = explain_prediction(model, tensor, resized_pil)

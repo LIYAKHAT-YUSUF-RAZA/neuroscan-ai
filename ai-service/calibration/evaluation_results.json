@@ -1,0 +1,357 @@
+{
+  "dataset": "Augmented Alzheimer MRI Dataset (OriginalDataset, 6400 samples)",
+  "provenance": {
+    "checkpoint_sha256": "676fefe87d63ab727fe9b3451e94d86b056082651bbe858ca52bb56ae8fcdf06",
+    "architecture": "EfficientNet-B0 + Swin-Small hybrid (Linear(2048, 4))",
+    "seed": 42,
+    "splits": {
+      "train_samples": 5120,
+      "val_calib_samples": 320,
+      "val_policy_samples": 320,
+      "test_samples": 640
+    },
+    "temperatures": {
+      "t_deterministic": 1.2131,
+      "t_mc_dropout": 1.1904
+    },
+    "abstention_thresholds": {
+      "abstention_confidence_threshold": 0.5346999764442444,
+      "low_confidence_threshold": 0.7215999960899353,
+      "high_uncertainty_entropy_threshold": 0.579800009727478,
+      "critical_abstention_entropy_threshold": 0.6754999756813049
+    },
+    "mc_passes": 20,
+    "timestamp": "2026-11-02T17:33:27Z"
+  },
+  "methods": {
+    "method_a_original_softmax": {
+      "accuracy_percent": 91.41,
+      "nll": 0.2186,
+      "nll_ci_95": [
+        0.164179,
+        0.273684
+      ],
+      "brier_score": 0.1212,
+      "brier_ci_95": [
+        0.093315,
+        0.148416
+      ],
+      "normalized_brier": 0.0606,
+      "ece_uniform_15": 0.0352,
+      "ece_ci_95": [
+        0.024547,
+        0.057208
+      ],
+      "ece_uniform_10": 0.0181,
+      "ece_adaptive_15": 0.0298,
+      "max_calibration_error": 0.2381,
+      "bin_accuracies": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.6667,
+        0.2727,
+        0.4667,
+        0.4167,
+        0.8571,
+        0.68,
+        0.8571,
+        0.9302,
+        0.973
+      ],
+      "bin_confidences": [
+        0.0333,
+        0.1,
+        0.1667,
+        0.2333,
+        0.3,
+        0.3667,
+        0.4286,
+        0.4976,
+        0.5678,
+        0.6281,
+        0.7001,
+        0.7729,
+        0.8355,
+        0.9075,
+        0.9898
+      ],
+      "bin_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        3,
+        11,
+        15,
+        12,
+        21,
+        25,
+        28,
+        43,
+        482
+      ]
+    },
+    "method_b_temperature_scaled": {
+      "accuracy_percent": 91.41,
+      "nll": 0.2145,
+      "nll_ci_95": [
+        0.169818,
+        0.261039
+      ],
+      "brier_score": 0.1211,
+      "brier_ci_95": [
+        0.094754,
+        0.147302
+      ],
+      "normalized_brier": 0.0605,
+      "ece_uniform_15": 0.0175,
+      "ece_ci_95": [
+        0.015838,
+        0.041295
+      ],
+      "ece_uniform_10": 0.0232,
+      "ece_adaptive_15": 0.0289,
+      "max_calibration_error": 0.1181,
+      "bin_accuracies": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.3333,
+        0.4,
+        0.4444,
+        0.7368,
+        0.6957,
+        0.7931,
+        0.871,
+        0.9231,
+        0.9818
+      ],
+      "bin_confidences": [
+        0.0333,
+        0.1,
+        0.1667,
+        0.2333,
+        0.3,
+        0.3667,
+        0.4344,
+        0.5062,
+        0.5626,
+        0.6357,
+        0.7012,
+        0.7639,
+        0.8341,
+        0.9019,
+        0.9863
+      ],
+      "bin_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        6,
+        10,
+        18,
+        19,
+        23,
+        29,
+        31,
+        65,
+        439
+      ]
+    },
+    "method_c_mc_dropout_mean": {
+      "accuracy_percent": 91.56,
+      "nll": 0.2172,
+      "nll_ci_95": [
+        0.164225,
+        0.270864
+      ],
+      "brier_score": 0.1211,
+      "brier_ci_95": [
+        0.093378,
+        0.148286
+      ],
+      "normalized_brier": 0.0605,
+      "ece_uniform_15": 0.0316,
+      "ece_ci_95": [
+        0.023522,
+        0.055484
+      ],
+      "ece_uniform_10": 0.0193,
+      "ece_adaptive_15": 0.0281,
+      "max_calibration_error": 0.1868,
+      "bin_accuracies": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.5,
+        0.4167,
+        0.4,
+        0.6154,
+        0.8824,
+        0.6667,
+        0.8333,
+        0.9556,
+        0.9727
+      ],
+      "bin_confidences": [
+        0.0333,
+        0.1,
+        0.1667,
+        0.2333,
+        0.3,
+        0.3667,
+        0.4435,
+        0.5125,
+        0.573,
+        0.6354,
+        0.6956,
+        0.7677,
+        0.8342,
+        0.9074,
+        0.9893
+      ],
+      "bin_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        4,
+        12,
+        15,
+        13,
+        17,
+        27,
+        30,
+        45,
+        477
+      ]
+    },
+    "method_d_scaled_mc_dropout": {
+      "accuracy_percent": 91.56,
+      "nll": 0.2143,
+      "nll_ci_95": [
+        0.169691,
+        0.260675
+      ],
+      "brier_score": 0.121,
+      "brier_ci_95": [
+        0.09498,
+        0.146967
+      ],
+      "normalized_brier": 0.0605,
+      "ece_uniform_15": 0.0157,
+      "ece_ci_95": [
+        0.015426,
+        0.041585
+      ],
+      "ece_uniform_10": 0.0215,
+      "ece_adaptive_15": 0.0245,
+      "max_calibration_error": 0.1205,
+      "bin_accuracies": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.3333,
+        0.5455,
+        0.4444,
+        0.7222,
+        0.72,
+        0.7857,
+        0.8667,
+        0.9231,
+        0.9818
+      ],
+      "bin_confidences": [
+        0.0333,
+        0.1,
+        0.1667,
+        0.2333,
+        0.3,
+        0.3667,
+        0.4396,
+        0.5144,
+        0.5649,
+        0.6313,
+        0.706,
+        0.7635,
+        0.8346,
+        0.9,
+        0.986
+      ],
+      "bin_counts": [
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        6,
+        11,
+        18,
+        18,
+        25,
+        28,
+        30,
+        65,
+        439
+      ]
+    }
+  },
+  "selective_prediction": {
+    "coverage": 0.9156,
+    "selective_risk": 0.0529,
+    "selective_accuracy": 94.71,
+    "retained_count": 586,
+    "rejected_count": 54,
+    "per_class": {
+      "MildDemented": {
+        "total": 90,
+        "retained": 85,
+        "rejected": 5,
+        "coverage": 0.9444,
+        "selective_accuracy": 100.0
+      },
+      "ModerateDemented": {
+        "total": 6,
+        "retained": 6,
+        "rejected": 0,
+        "coverage": 1.0,
+        "selective_accuracy": 100.0
+      },
+      "NonDemented": {
+        "total": 320,
+        "retained": 279,
+        "rejected": 41,
+        "coverage": 0.8719,
+        "selective_accuracy": 91.4
+      },
+      "VeryMildDemented": {
+        "total": 224,
+        "retained": 216,
+        "rejected": 8,
+        "coverage": 0.9643,
+        "selective_accuracy": 96.76
+      }
+    }
+  }
+}

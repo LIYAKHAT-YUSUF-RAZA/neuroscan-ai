@@ -1,0 +1,120 @@
+services:
+  # ----------------------------------------------------------------------------
+  # 1. MongoDB Database
+  # ----------------------------------------------------------------------------
+  mongodb:
+    image: mongo:7.0
+    container_name: neuroscan-mongo
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      - MONGO_INITDB_DATABASE=neuroscan
+    volumes:
+      - mongo-data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    networks:
+      - neuroscan-net
+
+  # ----------------------------------------------------------------------------
+  # 2. AI Inference Service (PyTorch CPU + Swin/EfficientNet Hybrid)
+  # ----------------------------------------------------------------------------
+  ai-service:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    container_name: neuroscan-ai
+    restart: unless-stopped
+    ports:
+      - "5001:5001"
+    environment:
+      - FLASK_ENV=production
+      - AI_SERVICE_HOST=0.0.0.0
+      - AI_SERVICE_PORT=5001
+      - AI_SERVICE_SECRET_KEY=prod-ai-secret-change-in-production-12345
+      - TORCH_NUM_THREADS=2
+      - OMP_NUM_THREADS=2
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 3000M
+        reservations:
+          cpus: '0.5'
+          memory: 1000M
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:5001/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 25s
+    networks:
+      - neuroscan-net
+
+  # ----------------------------------------------------------------------------
+  # 3. Express.js API Gateway & Background Job Worker
+  # ----------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: neuroscan-backend
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - NODE_ENV=production
+      - PORT=5000
+      - HOST=0.0.0.0
+      - MONGODB_URI=mongodb://mongodb:27017/neuroscan
+      - FLASK_AI_URL=http://ai-service:5001
+      - AI_SERVICE_SECRET_KEY=prod-ai-secret-change-in-production-12345
+      - JWT_SECRET=prod-jwt-secret-key-neuroscan-medical-grade-token-2026
+      - CLIENT_ORIGIN=http://localhost,http://localhost:5173,http://localhost:80
+      - RATE_LIMIT_WINDOW_MS=900000
+      - RATE_LIMIT_MAX=1000
+      - PREDICT_RATE_LIMIT_MAX=50
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      ai-service:
+        condition: service_healthy
+    deploy:
+      resources:
+        limits:
+          cpus: '1.0'
+          memory: 1024M
+    networks:
+      - neuroscan-net
+
+  # ----------------------------------------------------------------------------
+  # 4. React Single Page Application (Static Web Interface)
+  # ----------------------------------------------------------------------------
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_URL=http://localhost:5000
+        - VITE_AI_URL=http://localhost:5001
+    container_name: neuroscan-frontend
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    depends_on:
+      - backend
+    networks:
+      - neuroscan-net
+
+volumes:
+  mongo-data:
+    driver: local
+
+networks:
+  neuroscan-net:
+    driver: bridge

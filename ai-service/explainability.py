@@ -10,7 +10,10 @@ import base64
 import torch
 import torch.nn.functional as F
 import numpy as np
+import threading
 from PIL import Image
+
+_xai_lock = threading.Lock()
 
 
 def _get_jet_palette():
@@ -63,97 +66,106 @@ def generate_gradcam(model, image_tensor, target_class=None, device="cpu"):
     """
     Generates Grad-CAM attribution map targeting EfficientNet-B0 conv_head.
     Restores model state and clears hooks safely.
+    Guarded by _xai_lock to ensure thread-safety across concurrent workers.
     """
-    device = torch.device(device)
-    tensor = image_tensor.clone().to(device).requires_grad_(True)
-    model.eval()
+    with _xai_lock:
+        device = torch.device(device)
+        tensor = image_tensor.clone().to(device).requires_grad_(True)
+        model.eval()
 
-    target_layer = model.efficientnet.conv_head
+        target_layer = model.efficientnet.conv_head
 
-    activations = []
-    gradients = []
+        activations = []
+        gradients = []
 
-    def forward_hook(module, inp, outp):
-        activations.append(outp)
+        def forward_hook(module, inp, outp):
+            activations.append(outp)
 
-    def backward_hook(module, grad_in, grad_out):
-        gradients.append(grad_out[0])
+        def backward_hook(module, grad_in, grad_out):
+            gradients.append(grad_out[0])
 
-    f_handle = target_layer.register_forward_hook(forward_hook)
-    b_handle = target_layer.register_full_backward_hook(backward_hook)
+        f_handle = target_layer.register_forward_hook(forward_hook)
+        b_handle = target_layer.register_full_backward_hook(backward_hook)
 
-    try:
-        model.zero_grad(set_to_none=True)
-        logits = model(tensor)
+        try:
+            model.zero_grad(set_to_none=True)
+            logits = model(tensor)
 
-        if target_class is None:
-            target_class = int(logits.argmax(dim=1).item())
+            if target_class is None:
+                target_class = int(logits.argmax(dim=1).item())
 
-        score = logits[0, target_class]
-        score.backward()
+            score = logits[0, target_class]
+            score.backward()
 
-        act = activations[0].detach()  # Shape: (1, 1280, 7, 7)
-        grad = gradients[0].detach()   # Shape: (1, 1280, 7, 7)
+            act = activations[0].detach()  # Shape: (1, 1280, 7, 7)
+            grad = gradients[0].detach()   # Shape: (1, 1280, 7, 7)
 
-        # Global average pooling of gradients
-        weights = grad.mean(dim=(2, 3), keepdim=True)
-        cam = (weights * act).sum(dim=1, keepdim=True)
-        cam = F.relu(cam)
-        cam = F.interpolate(cam, size=(224, 224), mode="bilinear", align_corners=False)
-        cam_np = cam.squeeze().cpu().numpy()
+            # Global average pooling of gradients
+            weights = grad.mean(dim=(2, 3), keepdim=True)
+            cam = (weights * act).sum(dim=1, keepdim=True)
+            cam = F.relu(cam)
+            cam = F.interpolate(cam, size=(224, 224), mode="bilinear", align_corners=False)
+            cam_np = cam.squeeze().cpu().numpy()
 
-        cam_min, cam_max = cam_np.min(), cam_np.max()
-        cam_norm = (cam_np - cam_min) / (cam_max - cam_min + 1e-8)
+            cam_min, cam_max = cam_np.min(), cam_np.max()
+            cam_norm = (cam_np - cam_min) / (cam_max - cam_min + 1e-8)
 
-        del act, grad, weights, cam, tensor, logits
-        return cam_norm
-    finally:
-        f_handle.remove()
-        b_handle.remove()
-        model.zero_grad(set_to_none=True)
-        gc.collect()
+            del act, grad, weights, cam, tensor, logits
+            return cam_norm
+        finally:
+            f_handle.remove()
+            b_handle.remove()
+            model.zero_grad(set_to_none=True)
+            gc.collect()
 
 
 def generate_integrated_gradients(model, image_tensor, target_class=None, steps=15, device="cpu"):
     """
     Generates Integrated Gradients attribution with in-place streaming accumulation
     to avoid memory spikes across interpolation steps.
+    Guarded by _xai_lock to ensure thread-safety across concurrent workers.
     """
-    device = torch.device(device)
-    model.eval()
+    with _xai_lock:
+        device = torch.device(device)
+        model.eval()
 
-    input_tensor = image_tensor.clone().to(device)
-    baseline = torch.zeros_like(input_tensor)
+        input_tensor = image_tensor.clone().to(device)
+        baseline = torch.zeros_like(input_tensor)
 
-    if target_class is None:
-        with torch.inference_mode():
-            logits = model(input_tensor)
-            target_class = int(logits.argmax(dim=1).item())
+        try:
+            if target_class is None:
+                with torch.inference_mode():
+                    logits = model(input_tensor)
+                    target_class = int(logits.argmax(dim=1).item())
 
-    delta = (input_tensor - baseline).detach()
-    accum_grad = torch.zeros_like(input_tensor)
+            delta = (input_tensor - baseline).detach()
+            accum_grad = torch.zeros_like(input_tensor)
 
-    # Accumulate gradients step by step without storing intermediate graphs
-    for step in range(1, steps + 1):
-        step_tensor = (baseline + (float(step) / steps) * delta).detach().requires_grad_(True)
-        model.zero_grad(set_to_none=True)
-        out = model(step_tensor)
-        out[0, target_class].backward()
-        if step_tensor.grad is not None:
-            accum_grad += step_tensor.grad.detach()
-        model.zero_grad(set_to_none=True)
-        del step_tensor
-        del out
+            # Accumulate gradients step by step without storing intermediate graphs
+            for step in range(1, steps + 1):
+                step_tensor = (baseline + (float(step) / steps) * delta).detach().requires_grad_(True)
+                model.zero_grad(set_to_none=True)
+                out = model(step_tensor)
+                out[0, target_class].backward()
+                if step_tensor.grad is not None:
+                    accum_grad += step_tensor.grad.detach()
+                model.zero_grad(set_to_none=True)
+                del step_tensor
+                del out
 
-    avg_grads = accum_grad / float(steps)
-    attr = (delta * avg_grads).abs().sum(dim=1).squeeze().cpu().numpy()
+            avg_grads = accum_grad / float(steps)
+            attr = (delta * avg_grads).abs().sum(dim=1).squeeze().cpu().numpy()
 
-    del accum_grad, avg_grads, delta, input_tensor, baseline
-    gc.collect()
+            del accum_grad, avg_grads, delta, input_tensor, baseline
+            gc.collect()
 
-    attr_min, attr_max = attr.min(), attr.max()
-    ig_norm = (attr - attr_min) / (attr_max - attr_min + 1e-8)
-    return ig_norm
+            attr_min, attr_max = attr.min(), attr.max()
+            ig_norm = (attr - attr_min) / (attr_max - attr_min + 1e-8)
+            return ig_norm
+        finally:
+            model.zero_grad(set_to_none=True)
+            gc.collect()
+
 
 
 def explain_prediction(model, image_tensor, pil_image, target_class=None, device="cpu"):

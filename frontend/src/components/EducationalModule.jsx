@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
-import { BookOpen, Brain, Users, Clock, Sparkles, HelpCircle } from 'lucide-react';
+import { BookOpen, Brain, Users, Clock, Sparkles } from 'lucide-react';
 import { EDUCATIONAL_DATA, getStageInfo } from '../data/educationalContent';
+import { useLanguage } from '../context/LanguageContext';
 
 const CLASSES = ['NonDemented', 'VeryMildDemented', 'MildDemented', 'ModerateDemented'];
 
 export default function EducationalModule({ defaultClass = 'NonDemented' }) {
+  const { t, translateClass } = useLanguage();
   const [selectedClass, setSelectedClass] = useState(defaultClass);
 
   const activeData = EDUCATIONAL_DATA[selectedClass] || EDUCATIONAL_DATA.NonDemented;
@@ -20,12 +22,13 @@ export default function EducationalModule({ defaultClass = 'NonDemented' }) {
   return (
     <div
       className="panel"
+      id="educational"
       style={{
-        padding: '1.25rem 1.45rem',
-        marginTop: '1.15rem',
+        padding: '1.5rem',
+        backgroundColor: 'var(--bg-surface)',
         display: 'flex',
         flexDirection: 'column',
-        gap: '1rem',
+        gap: '1.25rem',
       }}
     >
       {/* Header: Title, Category selector tabs */}
@@ -35,17 +38,33 @@ export default function EducationalModule({ defaultClass = 'NonDemented' }) {
           alignItems: 'center',
           justifyContent: 'space-between',
           flexWrap: 'wrap',
-          gap: '0.75rem',
+          gap: '1rem',
+          borderBottom: '1px solid var(--border)',
+          paddingBottom: '1rem',
         }}
       >
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-            <BookOpen size={16} color="#38bdf8" />
-            <h3 style={{ fontSize: '0.98rem', fontWeight: '600', color: '#f8fafc', margin: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+            <div
+              style={{
+                width: '36px',
+                height: '36px',
+                borderRadius: 'var(--radius-xs)',
+                backgroundColor: 'var(--primary-light)',
+                border: '1px solid var(--primary-border)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--primary)',
+              }}
+            >
+              <BookOpen size={18} aria-hidden="true" />
+            </div>
+            <h2 style={{ fontSize: '1.25rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
               Educational Category Reference Guide
-            </h3>
+            </h2>
           </div>
-          <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: '0.15rem 0 0 0' }}>
+          <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', margin: '0.25rem 0 0 0' }}>
             Cognitive domain profiles corresponding to the model training dataset categories.
           </p>
         </div>
@@ -53,18 +72,19 @@ export default function EducationalModule({ defaultClass = 'NonDemented' }) {
         <span
           className="badge"
           style={{
-            background: 'rgba(255, 255, 255, 0.04)',
-            color: 'var(--text-muted)',
-            border: '1px solid var(--border-subtle)',
-            fontSize: '0.68rem',
+            backgroundColor: 'var(--bg-surface-subtle)',
+            color: 'var(--text-secondary)',
+            border: '1px solid var(--border)',
+            fontSize: '0.8rem',
+            fontWeight: '600',
           }}
         >
-          Reference Documentation
+          Research Reference
         </span>
       </div>
 
       {/* Category Selection Tabs */}
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.65rem' }}>
         {CLASSES.map((cName) => {
           const item = EDUCATIONAL_DATA[cName];
           const info = getStageInfo(cName);
@@ -73,103 +93,103 @@ export default function EducationalModule({ defaultClass = 'NonDemented' }) {
           return (
             <button
               key={cName}
+              type="button"
               onClick={() => setSelectedClass(cName)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.4rem',
-                padding: '0.35rem 0.75rem',
-                borderRadius: 'var(--radius-sm)',
-                fontSize: '0.78rem',
-                fontWeight: isSelected ? '600' : '500',
-                border: isSelected ? `1px solid ${info.color}` : '1px solid var(--border-subtle)',
-                background: isSelected ? 'var(--bg-surface-elevated)' : 'var(--bg-surface-muted)',
-                color: isSelected ? '#ffffff' : 'var(--text-secondary)',
+                gap: '0.5rem',
+                padding: '0.5rem 0.95rem',
+                borderRadius: 'var(--radius)',
+                fontSize: '0.88rem',
+                fontWeight: isSelected ? '700' : '500',
+                border: isSelected ? `2px solid ${info.color}` : '1px solid var(--border)',
+                backgroundColor: isSelected ? 'var(--primary-light)' : 'var(--bg-surface-subtle)',
+                color: isSelected ? 'var(--text-primary)' : 'var(--text-secondary)',
                 cursor: 'pointer',
                 transition: 'all 0.15s ease',
               }}
             >
               <span
                 style={{
-                  width: '6px',
-                  height: '6px',
+                  width: '8px',
+                  height: '8px',
                   borderRadius: '50%',
-                  background: info.color,
+                  backgroundColor: info.color,
                 }}
               />
-              <span>{item.categoryName}</span>
-              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
-                ({info.stageLabel})
-              </span>
+              <span>Stage {info.stageNumber}: {translateClass(cName)}</span>
             </button>
           );
         })}
       </div>
 
-      {/* Four-Column Desktop Reference Grid */}
-      <div className="educational-grid">
-        {domains.map((domain, idx) => {
-          const IconComp = domain.icon;
+      {/* Category Summary Banner */}
+      <div
+        style={{
+          padding: '1rem 1.25rem',
+          backgroundColor: 'var(--bg-surface-subtle)',
+          borderLeft: `4px solid ${stageInfo.color}`,
+          borderRadius: 'var(--radius)',
+          fontSize: '0.92rem',
+          color: 'var(--text-primary)',
+          lineHeight: '1.55',
+          border: '1px solid var(--border)',
+        }}
+      >
+        <strong>Category Profile: </strong> {activeData.summary}
+      </div>
+
+      {/* Domain Cards Grid */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          gap: '1rem',
+        }}
+      >
+        {domains.map((dom) => {
+          const Icon = dom.icon;
           return (
             <div
-              key={idx}
+              key={dom.title}
               style={{
-                background: 'var(--bg-surface-muted)',
-                padding: '0.95rem 1rem',
-                borderRadius: 'var(--radius-sm)',
-                border: '1px solid var(--border-subtle)',
+                backgroundColor: 'var(--bg-surface)',
+                border: '1px solid var(--border)',
+                borderRadius: 'var(--radius)',
+                padding: '1.15rem',
                 display: 'flex',
                 flexDirection: 'column',
-                gap: '0.45rem',
+                gap: '0.5rem',
+                boxShadow: 'var(--shadow-xs)',
               }}
             >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                <IconComp size={14} color="#38bdf8" />
-                <h4 style={{ fontSize: '0.8rem', fontWeight: '600', color: '#f1f5f9', margin: 0 }}>
-                  {domain.title}
-                </h4>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <Icon size={16} style={{ color: 'var(--primary)' }} />
+                <h3 style={{ fontSize: '0.96rem', fontWeight: '700', color: 'var(--text-primary)', margin: 0 }}>
+                  {dom.title}
+                </h3>
               </div>
-              
               <p
                 style={{
-                  fontSize: '0.78rem',
+                  fontSize: '0.88rem',
                   color: 'var(--text-secondary)',
-                  lineHeight: '1.45',
-                  fontStyle: domain.isItalic ? 'italic' : 'normal',
                   margin: 0,
-                  flex: 1,
+                  lineHeight: '1.5',
+                  fontStyle: dom.isItalic ? 'italic' : 'normal',
                 }}
               >
-                {domain.isItalic ? `"${domain.text}"` : domain.text}
+                {dom.text}
               </p>
             </div>
           );
         })}
       </div>
 
-      {/* Clinical Context Reminder Box */}
-      <div
-        style={{
-          padding: '0.75rem 0.95rem',
-          background: 'rgba(14, 116, 144, 0.05)',
-          border: '1px solid rgba(56, 189, 248, 0.2)',
-          borderRadius: 'var(--radius-sm)',
-          fontSize: '0.76rem',
-          color: '#cbd5e1',
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: '0.55rem',
-        }}
-      >
-        <HelpCircle size={15} color="#38bdf8" style={{ flexShrink: 0, marginTop: '1px' }} />
-        <div>
-          <span style={{ fontWeight: '600', color: '#e0f2fe' }}>Clinical Context Reminder: </span>
-          <span>{activeData.clinicalNotice}</span>
-          <p style={{ marginTop: '0.25rem', color: 'var(--text-muted)', fontSize: '0.72rem' }}>
-            Descriptions are educational profiles regarding cognitive domains; they do not characterize patient-specific clinical conditions.
-          </p>
-        </div>
-      </div>
+      {/* Clinical Reference Footnote */}
+      <p style={{ fontSize: '0.84rem', color: 'var(--text-muted)', margin: 0 }}>
+        Educational reference content describes discrete dataset labels. It does not replace individualized clinical cognitive assessment.
+      </p>
     </div>
   );
 }

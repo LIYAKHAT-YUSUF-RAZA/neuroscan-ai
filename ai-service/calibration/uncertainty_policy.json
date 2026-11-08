@@ -1,0 +1,26 @@
+{
+  "version": "1.0.0",
+  "method": "risk_coverage_selective_prediction",
+  "target_selective_risk": 0.05,
+  "selection_split": "val_policy",
+  "selection_samples": 320,
+  "thresholds": {
+    "abstention_confidence_threshold": 0.5346999764442444,
+    "low_confidence_threshold": 0.7215999960899353,
+    "high_uncertainty_entropy_threshold": 0.579800009727478,
+    "critical_abstention_entropy_threshold": 0.6754999756813049
+  },
+  "empirical_derivation": {
+    "val_accuracy": 94.06,
+    "val_mean_confidence": 0.9214000105857849,
+    "incorrect_samples_count": 19,
+    "selective_risk_at_threshold": 0.0479
+  },
+  "states": [
+    "normal",
+    "low_confidence",
+    "high_uncertainty",
+    "abstained",
+    "calibration_unavailable"
+  ]
+}

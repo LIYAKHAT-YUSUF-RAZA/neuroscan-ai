@@ -1,242 +1,345 @@
-# Alzheimer’s MRI Classification Web Application (MERN + PyTorch)
+# NeuroScan AI — Explainable Alzheimer’s Disease MRI Classification Platform
 
-A full-stack clinical research application integrating a Kaggle-trained PyTorch hybrid deep learning model (`AlzheimerNetHybrid`) to classify brain MRI scans into four cognitive categories, explain predictions through Grad-CAM and Integrated Gradients, and provide structured educational context.
+NeuroScan AI is a full-stack, research-grade medical imaging AI platform integrating a deep learning hybrid architecture (EfficientNet-B0 + Swin-Small Transformer) to classify 2D brain MRI axial slices into four cognitive stages, provide dual visual explainability through Grad-CAM and Integrated Gradients, and support comprehensive longitudinal patient care management.
 
 > [!CAUTION]
-> **Research Prototype Disclaimer:**
-> This software is strictly an educational and research prototype. It is **not** a medical diagnostic tool, clinical decision support system, or medical device. Model outputs and heatmap visualizations are computational attributions only, not clinically calibrated probabilities or anatomical diagnoses. The application cannot infer a person's actual memory, cognition, or daily behaviour from an MRI image. Any medical concerns must be assessed by qualified healthcare professionals.
+> **Research and Educational Prototype Disclaimer:**
+> NeuroScan AI is strictly an investigational software artifact developed for scientific research and educational demonstration purposes. It is **not** an FDA-cleared or CE-marked medical device, and it is **not** a clinical diagnostic tool or autonomous decision-support system. Model predictions, probability scores, and attribution heatmaps are computational estimates only, not clinical diagnoses. This system cannot infer a patient's actual cognitive state, memory capacity, or daily functional abilities. Any medical evaluation or diagnostic decision must be performed by licensed healthcare professionals and qualified neuroradiologists.
 
 ---
 
-## Architecture
+## Table of Contents
+- [Project Overview](#project-overview)
+- [Main Features](#main-features)
+- [System Architecture](#system-architecture)
+- [Technology Stack](#technology-stack)
+- [Project Directory Structure](#project-directory-structure)
+- [Model Setup (Checkpoints Not Included)](#model-setup-checkpoints-not-included)
+- [Dataset Setup (Medical Datasets Not Included)](#dataset-setup-medical-datasets-not-included)
+- [Configuration via Environment Variables](#configuration-via-environment-variables)
+- [Installation & Startup Guide](#installation--startup-guide)
+  - [Prerequisites](#prerequisites)
+  - [1. AI Service Setup](#1-ai-service-setup)
+  - [2. Backend API Gateway Setup](#2-backend-api-gateway-setup)
+  - [3. Frontend Dashboard Setup](#3-frontend-dashboard-setup)
+  - [4. Docker Compose Deployment](#4-docker-compose-deployment)
+- [API Overview](#api-overview)
+- [Research Limitations](#research-limitations)
+- [License](#license)
+
+---
+
+## Project Overview
+
+Alzheimer's disease is a progressive neurodegenerative disorder characterized by cortical atrophy and ventricular enlargement. Modern computer vision systems frequently achieve high nominal accuracy on public benchmarks, but risk silent failure when deployed across heterogeneous hospital environments.
+
+NeuroScan AI addresses this reliability gap by pairing a hybrid convolutional-transformer backbone with:
+1. **Explainable AI (XAI):** High-resolution visual attributions generated via Grad-CAM (targeting EfficientNet-B0 feature representations) and 50-step Integrated Gradients.
+2. **Reliability & Uncertainty Estimation:** Probability calibration via post-hoc temperature scaling, introspective error detection, and out-of-distribution (OOD) screening.
+3. **Clinical Management Workflow:** Full-stack electronic patient health record management, appointment scheduling, medication tracking with dosage reminders, caregiver support modules, and multi-language support (English, Hindi, Telugu).
+
+---
+
+## Main Features
+
+- **Four-Class Cognitive Staging:** Classifies axial brain MRI scans into:
+  - `0`: **MildDemented** (Mild Dementia Category)
+  - `1`: **ModerateDemented** (Moderate Dementia Category)
+  - `2`: **NonDemented** (Cognitively Normal / Control Cohort)
+  - `3`: **VeryMildDemented** (Very Mild / Early-Stage Cognitive Impairment)
+- **Dual Explainability Suite:**
+  - **Grad-CAM:** Generates activation heatmaps from `model.efficientnet.conv_head` (1,280 channels) highlighting macroscopic focal cortical regions.
+  - **Integrated Gradients:** Computes axiomatic pixel-level path attributions against a neutral baseline.
+  - Interactive opacity controls, colormap blending, and side-by-side comparative inspection.
+- **Patient Management & Longitudinal Tracking:**
+  - Multi-patient switching and patient profile management.
+  - Longitudinal MRI timeline comparison tracking progression over sequential scans.
+  - Re-analysis modal allowing updated inferences with custom clinical parameters.
+- **Caregiver & Routine Support:**
+  - Daily routine planner, hydration, and exercise reminders.
+  - Medication scheduler with dosage tracking and adherence logging.
+  - Clinician-reviewed nutritional recommendations and specialist finder directory.
+- **Multilingual Support:** Fully internationalized dashboard supporting English (`en`), Hindi (`hi`), and Telugu (`te`).
+
+---
+
+## System Architecture
+
+NeuroScan AI employs a decoupled three-tier microservice architecture:
 
 ```
-[ Frontend: React + Vite (Static Site CDN) ]
+[ Frontend: React 18 + Vite + Tailwind CSS ]
        │
-       ▼ (HTTPS multipart/form-data)
-[ Backend: Node.js + Express + Multer Gateway (Web Service) ]
+       ▼ (REST API / Multipart Form-Data via Axios)
+[ Backend Gateway: Node.js 20 + Express.js + Multer ]
        │
-       ▼ (HTTPS stream /predict, /explain)
-[ AI Service: Python + Flask + PyTorch + Gunicorn (Web Service) ]
-  ├── AlzheimerNetHybrid (EfficientNet-B0 + Swin-Small)
-  ├── Explainability Engine (Grad-CAM & Integrated Gradients)
-  └── Checkpoint: models/best_hybrid_model.pth (203 MB)
+       ├───► [ Database: MongoDB (Optional Persistence) ]
        │
-       ▼ (Optional Run Metadata Persistence)
-[ Database: MongoDB Atlas / Local MongoDB ]
+       ▼ (Internal Stream / Authenticated HTTP Request)
+[ AI Service: Python 3.10+ + Flask + PyTorch CPU/GPU ]
+       ├── Architecture: AlzheimerNetHybrid
+       │     ├── EfficientNet-B0 (1,280 features)
+       │     └── Swin-Small Transformer (768 features)
+       │     └── Joint Embedding (2,048-dim) ──► Linear(2048, 4)
+       └── Explainability Engine: Grad-CAM & Integrated Gradients
 ```
 
 ---
 
-## Model Specifications & Class Mapping
+## Technology Stack
 
-- **Input Dimensions:** 224 × 224 (RGB) normalized with ImageNet mean (`[0.485, 0.456, 0.406]`) and std (`[0.229, 0.224, 0.225]`).
-- **Feature Extractor 1:** EfficientNet-B0 (`conv_head`, 1280 features).
-- **Feature Extractor 2:** Swin-Small (`swin_small_patch4_window7_224`, 768 features).
-- **Concatenated Representation:** 2048 dimensions &rarr; Dropout (0.5) &rarr; Linear (2048 &rarr; 4).
-- **Canonical Class Indices (Preserved):**
-  - `0`: `MildDemented` &rarr; Mild Dementia Category
-  - `1`: `ModerateDemented` &rarr; Moderate Dementia Category
-  - `2`: `NonDemented` &rarr; Healthy / Non-Demented Category (Dataset Control Cohort)
-  - `3`: `VeryMildDemented` &rarr; Very Mild / Possible Early-Stage Category
-- **Trained Model Checkpoint Verification:**
-  - File: `best_hybrid_model.pth`
-  - Size: `211,853,875 bytes` (~202.04 MB)
-  - SHA-256: `676fefe87d63ab727fe9b3451e94d86b056082651bbe858ca52bb56ae8fcdf06`
+| Layer | Technologies |
+| :--- | :--- |
+| **Frontend** | React 18, Vite, Tailwind CSS, Lucide Icons, Canvas / HTML5 |
+| **Backend** | Node.js 20, Express.js, Mongoose, Multer, Helmet, CORS |
+| **AI Inference** | Python 3.10+, PyTorch, Torchvision, TIMM, Flask, Gunicorn, SciPy, Pillow, NumPy |
+| **Database** | MongoDB (Community Edition or MongoDB Atlas) |
+| **Containerization** | Docker, Docker Compose, Nginx |
 
 ---
 
-## Deploying to Render (Blueprint Guide)
+## Project Directory Structure
 
-The repository includes a ready-to-use Render Blueprint (`render.yaml`) that configures all three services on Render's Free tier:
-1. **`neuroscan-ai-service`**: Python 3.12 Web Service running Gunicorn WSGI.
-2. **`neuroscan-backend`**: Node.js 20 Web Service running the Express API Gateway.
-3. **`neuroscan-frontend`**: High-performance Static Site serving the React/Vite dashboard.
-
-### Step 1: Host the 203 MB Model Checkpoint
-GitHub enforces a 100 MB hard limit on file pushes, and `.pth` weight files are strictly ignored by `.gitignore`. You must upload `best_hybrid_model.pth` to an accessible cloud storage service and obtain a direct download URL:
-
-- **Option A — GitHub Release (Recommended & Free):**
-  1. On your GitHub repository page, navigate to **Releases** &rarr; **Draft a new release**.
-  2. Create a tag (e.g. `v1.0.0`).
-  3. Attach `ai-service/models/best_hybrid_model.pth` as a release binary asset.
-  4. Publish the release and copy the direct asset download link (`https://github.com/<owner>/<repo>/releases/download/v1.0.0/best_hybrid_model.pth`).
-- **Option B — Hugging Face Model Hub (Free):**
-  1. Create a model repository on [huggingface.co](https://huggingface.co).
-  2. Upload `best_hybrid_model.pth`.
-  3. Direct download URL format: `https://huggingface.co/<username>/<repo>/resolve/main/best_hybrid_model.pth`.
-- **Option C — AWS S3 / Cloudflare R2 / Google Cloud Storage:**
-  - Upload the file and configure public read access or a persistent presigned URL.
-
-> [!NOTE]
-> During the Render build phase of `neuroscan-ai-service`, `download_model.py` checks if the checkpoint exists. If missing, it streams it from `MODEL_DOWNLOAD_URL`, validates the expected SHA-256 hash (`676fefe8...`), and safely places it at `models/best_hybrid_model.pth`.
+```
+neuroscan-ai/
+├── ai-service/                # Python PyTorch inference microservice
+│   ├── app.py                 # Flask HTTP API server (/health, /predict, /explain)
+│   ├── model_loader.py        # AlzheimerNetHybrid model definition & loading
+│   ├── inference.py           # Preprocessing & classification pipeline
+│   ├── explainability.py      # Grad-CAM and Integrated Gradients implementations
+│   ├── download_model.py      # Automated model downloader & SHA-256 verifier
+│   ├── smoke_test.py          # Service verification smoke test
+│   ├── requirements.txt       # Python package dependencies
+│   ├── Dockerfile             # Production container definition
+│   └── .dockerignore          # Docker build exclusions
+├── backend/                   # Node.js + Express API Gateway
+│   ├── src/
+│   │   ├── config/            # Environment & MongoDB database configuration
+│   │   ├── controllers/       # Health, auth, patient, scan, job, care controllers
+│   │   ├── middlewares/       # Authentication, upload, error handler middlewares
+│   │   ├── models/            # Mongoose schemas (Patient, MriScan, Medication, etc.)
+│   │   ├── routes/            # Express REST API routes (/api/*)
+│   │   ├── services/          # AI proxy service, email & storage adapters
+│   │   └── server.js          # Express server entry point
+│   ├── test/                  # Automated integration & unit test suite
+│   ├── package.json           # Node.js dependencies and scripts
+│   ├── Dockerfile             # Production container definition
+│   └── .dockerignore          # Docker build exclusions
+├── frontend/                  # React + Vite Client Application
+│   ├── src/
+│   │   ├── components/        # UI components (Viewer, Timeline, Care, Metrics)
+│   │   ├── context/           # React context providers (LanguageContext)
+│   │   ├── data/              # Educational and guidance clinical metadata
+│   │   ├── locales/           # Localization strings (en, hi, te)
+│   │   ├── services/          # Frontend HTTP client
+│   │   ├── App.jsx            # Main dashboard application component
+│   │   ├── main.jsx           # React DOM root entry point
+│   │   └── index.css          # Design system and Tailwind stylesheets
+│   ├── package.json           # Frontend dependencies and scripts
+│   ├── vite.config.js         # Vite bundler configuration
+│   ├── nginx.conf             # Production Nginx reverse-proxy configuration
+│   ├── Dockerfile             # Multi-stage production container definition
+│   └── .dockerignore          # Docker build exclusions
+├── docker-compose.yml         # Multi-container orchestration definition
+├── render.yaml                # Cloud deployment blueprint
+├── test_e2e.py                # Full-stack integration test runner
+├── .gitignore                 # Comprehensive repository exclusion rules
+└── README.md                  # Master project documentation
+```
 
 ---
 
-### Step 2: Set Up MongoDB Atlas (Free Cloud Database)
-MongoDB is optional (the application runs in stateless mode if offline), but required for persistent run history:
+## Model Setup (Checkpoints Not Included)
 
-1. Sign up or log in at [cloud.mongodb.com](https://cloud.mongodb.com).
-2. Create a free shared cluster (**M0 Free**).
-3. Under **Security** &rarr; **Database Access**, create a user with a strong password.
-4. Under **Security** &rarr; **Network Access**, add IP address `0.0.0.0/0` (Allow Access from Anywhere).
-   *Reason: Render Free web services use dynamic outbound IP addresses.*
-5. Under **Deployment** &rarr; **Database**, click **Connect** &rarr; **Drivers** &rarr; **Node.js** and copy the connection string:
+> [!IMPORTANT]
+> **Checkpoints are excluded from Git:**
+> Trained deep learning model weights (`.pth`, `.pt`, `.onnx`, etc.) exceed GitHub file size limits and are intentionally excluded from version control via `.gitignore`. The trained model checkpoint is **not** bundled in this repository.
+
+To set up the pretrained `AlzheimerNetHybrid` model checkpoint:
+1. Obtain the trained checkpoint file: `best_hybrid_model.pth`.
+2. Verify its integrity against the expected SHA-256 checksum:
+   - **Filename:** `best_hybrid_model.pth`
+   - **Expected File Size:** `211,853,875 bytes` (~202.04 MB)
+   - **Expected SHA-256:** `676fefe87d63ab727fe9b3451e94d86b056082651bbe858ca52bb56ae8fcdf06`
+3. Place the verified checkpoint in the `ai-service/models/` directory:
+   ```bash
+   mkdir -p ai-service/models
+   mv best_hybrid_model.pth ai-service/models/best_hybrid_model.pth
    ```
-   mongodb+srv://<username>:<password>@cluster0.xxxxx.mongodb.net/alzheimer_db?retryWrites=true&w=majority
+4. Verify the model file locally:
+   ```bash
+   sha256sum ai-service/models/best_hybrid_model.pth
    ```
+   Alternatively, set the `MODEL_DOWNLOAD_URL` environment variable to stream and automatically verify the checkpoint on startup using `ai-service/download_model.py`.
 
 ---
 
-### Step 3: Deploy via Render Blueprint
+## Dataset Setup (Medical Datasets Not Included)
 
-1. Push your repository to GitHub or GitLab.
-2. In the [Render Dashboard](https://dashboard.render.com), click **New +** &rarr; **Blueprint**.
-3. Select your repository. Render will automatically detect and parse `render.yaml`.
-4. Render will prompt you for the un-synced configuration variables:
-   - **`MODEL_DOWNLOAD_URL`** (for `neuroscan-ai-service`): Paste the direct download link from Step 1.
-   - **`MONGODB_URI`** (for `neuroscan-backend`): Paste your MongoDB Atlas URI from Step 2.
-5. Click **Apply**. Render will orchestrate the deployment of all three services.
+> [!IMPORTANT]
+> **Medical Imaging Datasets are excluded from Git:**
+> In compliance with medical data privacy guidelines and repository size policies, patient imaging data, MRI DICOM/NIfTI volumes, and raw image collections are strictly excluded from version control.
+
+- **Primary Benchmark:** Research experiments were trained on the public Kaggle Augmented Alzheimer MRI Dataset (`uraninjo/augmented-alzheimer-mri-dataset`).
+- **Input Specifications:** The model accepts standard 2D axial T1-weighted brain MRI slices in standard image formats (`JPEG`, `PNG`).
+- **Image Preprocessing:** Images are resized to $224 \times 224$ pixels, converted to RGB, and normalized using ImageNet channel statistics ($\mu = [0.485, 0.456, 0.406]$, $\sigma = [0.229, 0.224, 0.225]$).
 
 ---
 
-### Render Environment Variables Reference
+## Configuration via Environment Variables
 
-#### 1. AI Service (`neuroscan-ai-service`)
-| Variable | Value / Default | Description |
+All services are configured through environment variables. **Never commit actual `.env` files.** Set the variables in your local environment, shell, or container runner:
+
+### 1. AI Service Configuration
+| Variable | Default | Description |
 | :--- | :--- | :--- |
-| `PORT` | *(Assigned by Render)* | Render dynamically binds the listening port |
-| `AI_SERVICE_HOST` | `0.0.0.0` | Production network interface binding |
-| `MODEL_CHECKPOINT_PATH` | `models/best_hybrid_model.pth` | Checkpoint location relative to `ai-service/` |
-| `MODEL_DOWNLOAD_URL` | *(User Provided)* | Direct URL to fetch checkpoint during build |
-| `MODEL_EXPECTED_SHA256` | `676fefe8...` | Checkpoint checksum verification |
-| `MODEL_EXPECTED_SIZE_BYTES` | `211853875` | Expected checkpoint file size |
+| `PORT` | `5001` | Port on which the AI microservice listens |
+| `AI_SERVICE_HOST` | `127.0.0.1` | Host address binding (`0.0.0.0` for containers) |
+| `MODEL_CHECKPOINT_PATH` | `models/best_hybrid_model.pth` | Path to weights file relative to `ai-service/` |
+| `MODEL_EXPECTED_SHA256` | `676fefe8...` | Expected SHA-256 checksum for verification |
+| `MODEL_DOWNLOAD_URL` | *(Optional)* | Direct URL to download weights on startup if missing |
+| `AI_SERVICE_SECRET` | *(Optional)* | Pre-shared secret token for internal API authentication |
 
-#### 2. Express Backend (`neuroscan-backend`)
-| Variable | Value / Default | Description |
+### 2. Backend Gateway Configuration
+| Variable | Default | Description |
 | :--- | :--- | :--- |
-| `PORT` | *(Assigned by Render)* | Render dynamically binds the listening port |
-| `HOST` | `0.0.0.0` | Gateway network interface binding |
-| `NODE_ENV` | `production` | Production mode flag |
-| `FLASK_AI_URL` | `https://neuroscan-ai-service.onrender.com` | Public HTTPS URL of the AI web service |
-| `CLIENT_ORIGIN` | `https://neuroscan-frontend.onrender.com,http://localhost:5173` | Allowed CORS origins (comma-separated) |
-| `MONGODB_URI` | *(User Provided)* | MongoDB Atlas connection string |
+| `PORT` | `5000` | Port on which the Express gateway listens |
+| `HOST` | `0.0.0.0` | Network binding interface |
+| `NODE_ENV` | `development` | Runtime environment (`development` / `production`) |
+| `FLASK_AI_URL` | `http://127.0.0.1:5001` | URL of the upstream AI inference service |
+| `CLIENT_ORIGIN` | `http://localhost:5173` | Allowed CORS origins (comma-separated for multiples) |
+| `MONGODB_URI` | `mongodb://127.0.0.1:27017/alzheimer_db` | MongoDB connection URI (operates in stateless mode if omitted) |
+| `AI_SERVICE_SECRET` | *(Optional)* | Pre-shared secret matching the AI service |
 
-#### 3. React Frontend (`neuroscan-frontend`)
-| Variable | Value / Default | Description |
+### 3. Frontend Configuration
+| Variable | Default | Description |
 | :--- | :--- | :--- |
-| `VITE_API_BASE_URL` | `https://neuroscan-backend.onrender.com/api` | Baked into bundle at build time for API calls |
+| `VITE_API_BASE_URL` | `http://localhost:5000/api` | Base URL of the backend API gateway |
 
 ---
 
-### Render Troubleshooting & Notes
+## Installation & Startup Guide
 
-- **Free Tier Cold Starts:** Render Free web services spin down after 15 minutes of inactivity. When a new scan is submitted after inactivity, the first request may take 30–50 seconds while the containers boot and the PyTorch model loads into memory.
-- **Memory Consumption:** PyTorch with EfficientNet and Swin-Small uses ~350 MB RAM. `render.yaml` configures Gunicorn with `--workers 1 --threads 2 --timeout 120` to prevent worker duplication that would exceed the 512 MB free tier memory limit.
-- **CORS Errors:** If your frontend URL differs from the default `https://neuroscan-frontend.onrender.com` (e.g. customized subdomain), update `CLIENT_ORIGIN` in the `neuroscan-backend` settings in the Render Dashboard.
-- **Database Graceful Degradation:** If `MONGODB_URI` is omitted or invalid, the backend will log a warning and continue operating in stateless mode. Inference and explainability continue to work without disruption.
+### Prerequisites
+- **Node.js:** v18.0.0+ (v20 LTS recommended)
+- **Python:** v3.10+ (v3.11 recommended)
+- **MongoDB:** v6.0+ (Optional, for persistent scan and patient history)
+- **Docker & Docker Compose:** Optional, for containerized execution
 
 ---
 
-## Quick Start Guide (Local Development)
+### 1. AI Service Setup
 
-### 0. MongoDB Database (Optional — Persistent History)
 ```bash
-mkdir -p ~/.local/share/alzheimer_db
-mongod --dbpath ~/.local/share/alzheimer_db --port 27017 --fork --logpath ~/.local/share/alzheimer_db/mongod.log
-```
-*(To stop later: `mongod --dbpath ~/.local/share/alzheimer_db --shutdown`)*
-
-### 1. AI Inference Microservice (Terminal 1)
-```bash
+# Navigate to AI service directory
 cd ai-service
+
+# Create and activate Python virtual environment
+python3 -m venv .venv
 source .venv/bin/activate
+
+# Install required dependencies
+pip install --upgrade pip
+pip install -r requirements.txt
+
+# Verify the model checkpoint exists (see Model Setup section)
+ls -la models/best_hybrid_model.pth
+
+# Run smoke test
+python smoke_test.py
+
+# Start the Flask microservice
 python app.py
 ```
-*Health Check:* `http://127.0.0.1:5001/health`
+*Health Check:* `curl http://127.0.0.1:5001/health`
 
-### 2. Express Backend Gateway (Terminal 2)
+---
+
+### 2. Backend API Gateway Setup
+
 ```bash
+# In a new terminal, navigate to backend directory
 cd backend
+
+# Install Node.js dependencies
+npm install
+
+# Run automated tests
+npm test
+
+# Start the backend gateway in development mode
 npm run dev
 ```
-*Health Check:* `http://localhost:5000/api/health`
+*Health Check:* `curl http://localhost:5000/api/health`
 
-### 3. React Frontend Dashboard (Terminal 3)
+---
+
+### 3. Frontend Dashboard Setup
+
 ```bash
+# In a new terminal, navigate to frontend directory
 cd frontend
+
+# Install frontend dependencies
+npm install
+
+# Build production bundle check
+npm run build
+
+# Start Vite development server
 npm run dev
 ```
-*Dashboard Access:* `http://localhost:5173`
+*Access Application:* Open `http://localhost:5173` in your web browser.
 
 ---
 
-## Running Verification Tests
+### 4. Docker Compose Deployment
 
-- **Model Downloader Existing-File Check:**
-  ```bash
-  python3 ai-service/download_model.py
-  ```
-- **AI Service Smoke Test (Synthetic Image + Model Checkpoint):**
-  ```bash
-  ai-service/.venv/bin/python ai-service/smoke_test.py
-  ```
-- **Backend API & Health Smoke Test:**
-  ```bash
-  cd backend && npm test
-  ```
-- **Frontend Production Build Test:**
-  ```bash
-  cd frontend && npm run build
-  ```
-- **Full End-to-End Test (Flask + Express Integration):**
-  ```bash
-  ai-service/.venv/bin/python test_e2e.py
-  ```
+To build and run all services simultaneously in isolated containers:
+
+```bash
+# Build and start all containers in background
+docker compose up -d --build
+
+# Inspect running containers
+docker compose ps
+
+# View service logs
+docker compose logs -f
+```
+
+- **Frontend Application:** `http://localhost:80`
+- **Backend API Gateway:** `http://localhost:5000/api/health`
+- **AI Inference Service:** `http://localhost:5001/health`
 
 ---
 
-## Directory Structure
+## API Overview
 
-```
-Alzheimer_ai-assistant/
-├── render.yaml                # Render Blueprint infrastructure specification
-├── ai-service/                # Python inference microservice
-│   ├── .venv/                 # Virtual environment (gitignored)
-│   ├── models/
-│   │   ├── best_hybrid_model.pth # Trained weights (203 MB, gitignored)
-│   │   └── .gitkeep
-│   ├── download_model.py      # Checkpoint streamer & SHA-256 validator
-│   ├── app.py                 # Flask server (/health, /predict, /explain)
-│   ├── model_loader.py        # AlzheimerNetHybrid & safe checkpoint loading
-│   ├── inference.py           # Preprocessing & classification pipeline
-│   ├── explainability.py      # Grad-CAM & Integrated Gradients engine
-│   ├── smoke_test.py          # Synthetic MRI inference test
-│   ├── requirements.txt       # Frozen PyTorch CPU & Gunicorn dependencies
-│   └── README.md
-├── backend/                   # Node.js + Express gateway
-│   ├── src/
-│   │   ├── config/            # Environment & MongoDB configuration
-│   │   ├── controllers/       # Health, predict, history controllers
-│   │   ├── middlewares/       # Multer memory storage & centralized errors
-│   │   ├── models/            # Mongoose Prediction schema
-│   │   ├── routes/            # Express router (/api/*)
-│   │   ├── services/          # HTTP streaming to Flask
-│   │   └── server.js          # Server entry point
-│   ├── test/                  # Backend smoke tests
-│   ├── package.json
-│   └── README.md
-├── frontend/                  # React + Vite dashboard
-│   ├── src/
-│   │   ├── components/        # UI components (Upload, Charts, XAI, Guides)
-│   │   ├── data/              # Static clinical educational metadata
-│   │   ├── services/          # API client
-│   │   ├── App.jsx            # Master dashboard view
-│   │   └── index.css          # Modern glassmorphism design
-│   ├── package.json
-│   ├── vite.config.js
-│   └── README.md
-├── test_e2e.py                # Full-stack integration test runner
-├── .gitignore                 # Security rules ignoring weights, envs, caches
-└── README.md
-```
+### AI Service Endpoints (`:5001`)
+- `GET /health` — Service health, device info (`cpu`/`cuda`), and model load status.
+- `POST /predict` — Accepts multipart form-data image file (`image`); returns predicted class, canonical class index, confidence, raw logits, and softmax probabilities.
+- `POST /explain` — Accepts multipart form-data image file (`image`); returns base64 Data URLs for Grad-CAM and Integrated Gradients overlays.
+
+### Backend Gateway Endpoints (`:5000/api`)
+- `GET /api/health` — System health, database connection state, and upstream AI microservice connectivity.
+- `POST /api/predict` — Proxies upload to AI service, persists scan record to MongoDB (if connected), and returns inference results.
+- `POST /api/explain` — Generates attribution maps with caching and metadata logging.
+- `GET /api/history` — Retrieves historical scan records, progression data, and diagnostic timeline.
+- `GET /api/patients` — Lists registered patient profiles and longitudinal tracking records.
+- `POST /api/patients` — Registers new patient profiles and medical preferences.
+
+---
+
+## Research Limitations
+
+1. **Slice-Level vs. Subject-Level Splitting:** Public Kaggle Alzheimer's 2D slice collections lack subject/patient identifiers. Random partitioning on 2D slices creates an inherent risk of cross-slice correlation between train and test sets.
+2. **2D Axial Formulation:** The model processes isolated 2D axial slices, discarding volumetric out-of-plane anatomical context.
+3. **Exploratory Cohort Boundaries:** External generalization testing has been conducted on exploratory pilot samples. Prospective clinical trials across diverse scanner vendors (GE, Siemens, Philips) and pulse sequences are required prior to any clinical translation.
+4. **Computational Saliency Constraints:** Heatmaps provide gradient-based feature attribution and should never be interpreted as anatomical lesion segmentations.
+
+---
+
+## License
+
+This project is licensed under the Apache License 2.0. See the LICENSE file for details.

@@ -12,6 +12,14 @@ import threading
 import hmac
 from flask import Flask, request, jsonify
 from PIL import Image
+import torch
+
+# Limit PyTorch intra-op threads to avoid CPU thrashing under concurrent load
+_torch_threads = int(os.getenv("TORCH_NUM_THREADS", "2"))
+try:
+    torch.set_num_threads(_torch_threads)
+except Exception:
+    pass
 
 # Import local modules
 from model_loader import load_model
